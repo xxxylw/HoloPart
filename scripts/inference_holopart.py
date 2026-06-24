@@ -167,7 +167,10 @@ def run_holopart(
                 final_octree_depth=final_octree_depth,
                 post_smooth=post_smooth
             )
-        meshes = [trimesh.Trimesh(mesh_v_f[0].astype(np.float32), mesh_v_f[1]) for mesh_v_f in output]
+        meshes = [trimesh.Trimesh(mesh_v_f[0].astype(np.float32), mesh_v_f[1]) for mesh_v_f in output if mesh_v_f[0] is not None]
+        if len(meshes) == 0:
+            print(f"Warning: part {i} ({part_id_list[i]}) produced no geometry, skipping")
+            continue
         part_mesh = trimesh.util.concatenate(meshes)
         part_mesh = simplify_mesh(part_mesh, 10000)
         part_mesh.visual.vertex_colors = random_colors[i]
@@ -195,10 +198,11 @@ if __name__ == "__main__":
 
     os.makedirs(args.output_dir, exist_ok=True)
     holopart_weights_dir = "pretrained_weights/HoloPart"
-    snapshot_download(repo_id="VAST-AI/HoloPart", local_dir=holopart_weights_dir)
+    if not os.path.isfile(os.path.join(holopart_weights_dir, "model_index.json")):
+        snapshot_download(repo_id="VAST-AI/HoloPart", local_dir=holopart_weights_dir)
 
     # init HoloPart pipeline
-    pipe: HoloPartPipeline = HoloPartPipeline.from_pretrained(holopart_weights_dir).to(device, dtype)
+    pipe: HoloPartPipeline = HoloPartPipeline.from_pretrained(holopart_weights_dir, use_safetensors=True).to(device, dtype)
     parts_data = prepare_data(args.mesh_input, device=device)
 
     run_holopart(
